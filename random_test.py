@@ -1,4 +1,5 @@
-#!/usr/local/bin/sage -python
+# coding=utf8
+import timeit
 from random import randint
 
 import simulated_annealing
@@ -101,28 +102,60 @@ def energy_distance_one_based(graph):
     # return the variance as energy distance from the given state to solutions
     return energy_variance
 
+
 if __name__ == '__main__':
     test_data = [
-        [2, 8]
+        # Include any regular graph combination
+        # [8, 14],
+        # [6, 9],
+        # [3, 8],
+        # [5, 8],
+        # [7, 8],
+        # [2, 8],
+        # [16, 18]
+
+        # Odd r reguler
+        # [4, 17],
+        # [8, 15],
+        # [10, 15],
+        # [12, 15]
+        # [4, 18],
+
+        # [18, 20]
+        [10, 18]
     ]
-    max_vertices = 20
     iteration_count = 10000
-    # for i in range(4, max_vertices):
-    #     vertex = i
-    #     for j in range(2, i-1, 2):
-    #         degree = j
-    #         test_data.append([degree, vertex])
+
+    print test_data
 
     for conf in test_data:
         degree = conf[0]
         vertex = conf[1]
+
+        print 'degree: %s vertex: %s' % (degree, vertex)
+
+        start = timeit.default_timer()
         ret = simulated_annealing.simulated_annealing(
+            initial_temp=2,
+            temp_min=0.05,
             initial_state_function=initial_graph_function(degree, vertex),
             neighbour_function=neighbour,
-            energy_distance_function=energy_distance,
-            iteration_count=iteration_count
+            energy_distance_function=energy_distance_one_based,
+            iteration_count=iteration_count,
+            # print_step=True
         )
+        elapsed = timeit.default_timer() -  start
         # if ret[1] == 0:
-        print 'degree: %s vertex: %s' % (degree, vertex)
         print 'Labels: %s' % ret[0].edges(labels=False)
         print 'Energy diff: %s' % ret[1]
+        print 'Time diff: %f' % elapsed
+        print 'n === 0 (mod 4) %s' % (vertex % 4 == 0, )
+        print 'n === r + 2 === 2 (mod 4) %s' % (
+            vertex % (degree + 2) == 0 and
+            vertex % 4 == 2 and
+            degree % 4 == 0
+            , )
+        print
+
+        P = ret[0].plot()
+        P.show()
