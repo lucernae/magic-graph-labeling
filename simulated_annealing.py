@@ -4,6 +4,10 @@ import math
 import sys
 from random import random
 
+from utils import get_logger
+
+logger = get_logger(__name__)
+
 
 def acceptance_probability(old_energy_state, new_energy_state, temperature):
     try:
@@ -23,6 +27,10 @@ def simulated_annealing(
         energy_distance_function=None,
         acceptance_probabability_function=acceptance_probability,
         print_step=False):
+    if print_step:
+        print_function = logger.info
+    else:
+        print_function = logger.debug
     state = initial_state_function()
     current_energy = energy_distance_function(state)
     if initial_temp:
@@ -31,11 +39,10 @@ def simulated_annealing(
         temp = current_energy
     while temp > temp_min:
         i = 0
-        if print_step:
-            print 'Current energy {0}'.format(current_energy)
-            print 'Current temp {0}'.format(temp)
-            print 'Current graph {0}'.format(state.edges(labels=False))
-            print
+        print_function('Current energy {0}'.format(current_energy))
+        print_function('Current temp {0}'.format(temp))
+        print_function('Current graph {0}'.format(state.edges(labels=False)))
+        print_function('')
         while i < iteration_count:
             neighbour = neighbour_function(state, temp)
             neighbour_energy = energy_distance_function(neighbour)
@@ -47,4 +54,4 @@ def simulated_annealing(
             i += 1
         temp *= annealing_factor
 
-    return (state, current_energy)
+    return state, current_energy

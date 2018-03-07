@@ -1,11 +1,19 @@
 # coding=utf8
-import timeit
 from random import randint
 
 import simulated_annealing
+from distance_labelling_theorem import (
+    criteria_1, criteria_2, criteria_3,
+    criteria_4, criteria_5, criteria_6)
 from sage.all import *
 from sage.graphs.generators.random import RandomRegular
 from sage.graphs.graph import Graph
+
+import timeit
+
+from utils import get_logger, set_log_level
+
+logger = get_logger(__name__)
 
 
 def neighbour(graph, temp):
@@ -39,8 +47,8 @@ def neighbour(graph, temp):
     return neighbour_graph
 
 
-def initial_graph_function(degree, vertices):
-    return lambda: RandomRegular(degree, vertices)
+def initial_graph_function(degree, vertices, seed=None):
+    return lambda: RandomRegular(degree, vertices, seed=seed)
 
 
 def energy_distance(graph):
@@ -103,59 +111,124 @@ def energy_distance_one_based(graph):
     return energy_variance
 
 
+def generate_regular_graph_param_test_data():
+    """
+
+    Generate required R and N combination for test data
+
+    :return:
+    """
+    graph_params = []
+    # Generate even N regular graph
+    for n in range(4, 18, 2):
+        # Generate even R degree
+        for r in range(2, n, 2):
+            graph_params.append([r, n])
+
+    # Generate odd N regular graph
+    for n in range(9, 19, 2):
+        # Generate even R degree
+        for r in range(2, n, 2):
+            graph_params.append([r, n])
+    return graph_params
+
+
 if __name__ == '__main__':
+
+    # Set log level
+    set_log_level(log_level='INFO')
+
     test_data = [
         # Include any regular graph combination
-        # [8, 14],
-        # [6, 9],
-        # [3, 8],
-        # [5, 8],
-        # [7, 8],
-        # [2, 8],
-        # [16, 18]
-
-        # Odd r reguler
-        # [4, 17],
-        # [8, 15],
-        # [10, 15],
-        # [12, 15]
-        # [4, 18],
-
-        # [18, 20]
-        [10, 18]
     ]
-    iteration_count = 10000
+    test_data = test_data + generate_regular_graph_param_test_data()
+    iteration_count = 100
 
-    print test_data
+    logger.info('Test matrix: {0}'.format(test_data))
 
-    for conf in test_data:
-        degree = conf[0]
-        vertex = conf[1]
+    # for combination of graph params in test_data:
+    for param in test_data:
+        r = param[0]
+        n = param[1]
 
-        print 'degree: %s vertex: %s' % (degree, vertex)
+        logger.info('degree: {0} vertex: {1}'.format(r, n))
 
-        start = timeit.default_timer()
-        ret = simulated_annealing.simulated_annealing(
-            initial_temp=2,
-            temp_min=0.05,
-            initial_state_function=initial_graph_function(degree, vertex),
-            neighbour_function=neighbour,
-            energy_distance_function=energy_distance_one_based,
-            iteration_count=iteration_count,
-            # print_step=True
-        )
-        elapsed = timeit.default_timer() -  start
-        # if ret[1] == 0:
-        print 'Labels: %s' % ret[0].edges(labels=False)
-        print 'Energy diff: %s' % ret[1]
-        print 'Time diff: %f' % elapsed
-        print 'n === 0 (mod 4) %s' % (vertex % 4 == 0, )
-        print 'n === r + 2 === 2 (mod 4) %s' % (
-            vertex % (degree + 2) == 0 and
-            vertex % 4 == 2 and
-            degree % 4 == 0
-            , )
-        print
+        g = initial_graph_function(r, n)()
 
-        P = ret[0].plot()
-        P.show()
+        criterias = [
+            criteria_1,
+            criteria_2,
+            criteria_3,
+            criteria_4,
+            criteria_5,
+            criteria_6
+        ]
+        criteria_found = False
+        for crit in criterias:
+            if crit(g):
+                criteria_found = True
+                break
+        if not criteria_found:
+            logger.info('Distance magic graph not guaranteed to exists.')
+            logger.info('Skipping.')
+            logger.info('')
+            continue
+
+        logger.info('Distance magic graph exists')
+
+        # Proceed only if distance magic graph is guaranteed to exists
+        # by the theorem (criteria)
+
+        start_try = timeit.default_timer()
+
+        # Try until it succeeds, because it was guaranteed to exists
+        successful_graph = []
+        tries = 0
+        while True:
+            logger.info('Try count: {0}'.format(tries))
+            start = timeit.default_timer()
+            end_graph, energy_difference = simulated_annealing.simulated_annealing(
+                initial_temp=2,
+                temp_min=0.05,
+                initial_state_function=lambda: g,
+                neighbour_function=neighbour,
+                energy_distance_function=energy_distance_one_based,
+                iteration_count=iteration_count,
+            )
+            elapsed = timeit.default_timer() - start
+
+            # When distance magic graph is found
+            if energy_difference == 0:
+                # Try to find another graph
+                isomorphic_found = False
+                for s in successful_graph:
+                    if end_graph.is_isomorphic(s):
+                        isomorphic_found = True
+                        break
+
+                if isomorphic_found:
+                    logger.info(
+                        'Graph is isomorphic with previous. Stop trying...')
+                    break
+                else:
+                    # if not isomorphic, remember this graph and find possible
+                    # existing alternative in the next loop
+                    successful_graph.append(end_graph)
+
+                logger.info('Found distance magic graph.')
+                logger.info('Labels: {0}'.format(
+                    end_graph.edges(labels=False)
+                ))
+                logger.info('Annealing time: {0}'.format(elapsed))
+            else:
+                logger.info('Distance magic graph not found. Retrying...')
+
+            # Found or not, prepare for next iteration
+            # randomize new regular graph
+            tries += 1
+            g = initial_graph_function(r, n)()
+
+
+        end_try = timeit.default_timer() - start_try
+        logger.info('Effort time: {0}'.format(end_try))
+        logger.info('')
